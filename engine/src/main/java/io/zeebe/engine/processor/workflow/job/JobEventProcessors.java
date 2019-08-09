@@ -7,8 +7,6 @@
  */
 package io.zeebe.engine.processor.workflow.job;
 
-import io.zeebe.engine.processor.ReadonlyProcessingContext;
-import io.zeebe.engine.processor.StreamProcessorLifecycleAware;
 import io.zeebe.engine.processor.TypedRecordProcessors;
 import io.zeebe.engine.state.ZeebeState;
 import io.zeebe.engine.state.deployment.WorkflowState;
@@ -44,12 +42,6 @@ public class JobEventProcessors {
                 workflowState.getElementInstanceState().getVariablesState(),
                 zeebeState.getKeyGenerator()))
         .withListener(new JobTimeoutTrigger(jobState))
-        .withListener(
-            new StreamProcessorLifecycleAware() {
-              @Override
-              public void onRecovered(ReadonlyProcessingContext context) {
-                jobState.setJobsAvailableCallback(onJobsAvailableCallback);
-              }
-            });
+        .withListener(new ActivatableJobsCount(jobState, onJobsAvailableCallback));
   }
 }

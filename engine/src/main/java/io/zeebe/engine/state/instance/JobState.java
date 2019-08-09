@@ -17,10 +17,10 @@ import io.zeebe.db.impl.DbNil;
 import io.zeebe.db.impl.DbString;
 import io.zeebe.engine.Loggers;
 import io.zeebe.engine.metrics.JobMetrics;
+import io.zeebe.engine.processor.workflow.job.JobTypeAvailibilityListener;
 import io.zeebe.engine.state.ZbColumnFamilies;
 import io.zeebe.protocol.impl.record.value.job.JobRecord;
 import io.zeebe.util.EnsureUtil;
-import io.zeebe.util.buffer.BufferUtil;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import org.agrona.DirectBuffer;
@@ -55,7 +55,7 @@ public class JobState {
 
   private final JobMetrics metrics;
 
-  private Consumer<String> onJobsAvailableCallback;
+  private JobTypeAvailibilityListener jobTypeAvailabilityListener;
 
   public JobState(ZeebeDb<ZbColumnFamilies> zeebeDb, DbContext dbContext, int partitionId) {
 
@@ -238,6 +238,11 @@ public class JobState {
         }));
   }
 
+  public void forEachActivatableJobEntry(Consumer<DirectBuffer> callback) {
+    activatableColumnFamily.forEach(
+        (compositeKey, zbNil) -> callback.accept(compositeKey.getFirst().getBuffer()));
+  }
+
   boolean visitJob(
       long jobKey, BiFunction<Long, JobRecord, Boolean> callback, Runnable cleanupRunnable) {
     final JobRecord job = getJob(jobKey);
@@ -264,16 +269,6 @@ public class JobState {
     return unpackedObjectValue == null ? null : (JobRecord) unpackedObjectValue.getObject();
   }
 
-  public void setJobsAvailableCallback(Consumer<String> onJobsAvailableCallback) {
-    this.onJobsAvailableCallback = onJobsAvailableCallback;
-  }
-
-  private void notifyJobAvailable(DirectBuffer jobType) {
-    if (onJobsAvailableCallback != null) {
-      onJobsAvailableCallback.accept(BufferUtil.bufferAsString(jobType));
-    }
-  }
-
   private void resetVariablesAndUpdateJobRecord(long key, JobRecord updatedValue) {
     jobKey.wrapLong(key);
     // do not persist variables in job state
@@ -291,25 +286,38 @@ public class JobState {
     EnsureUtil.ensureNotNullOrEmpty("type", type);
 
     jobTypeKey.wrapBuffer(type);
-    final boolean firstActivatableJob = !activatableColumnFamily.existsPrefix(jobTypeKey);
 
     jobKey.wrapLong(key);
     activatableColumnFamily.put(typeJobKey, DbNil.INSTANCE);
-    if (firstActivatableJob) {
-      notifyJobAvailable(type);
-    }
+    notifyJobCreated(type);
   }
 
   private void makeJobNotActivatable(DirectBuffer type) {
     EnsureUtil.ensureNotNullOrEmpty("type", type);
 
     jobTypeKey.wrapBuffer(type);
-    activatableColumnFamily.delete(typeJobKey);
+    if (activatableColumnFamily.exists(typeJobKey)) {
+      activatableColumnFamily.delete(typeJobKey);
+      notifyJobNotActivatable(type);
+    }
   }
 
   private void removeJobDeadline(long deadline) {
     deadlineKey.wrapLong(deadline);
     deadlinesColumnFamily.delete(deadlineJobKey);
+  }
+
+  public void addJobTypeAvailabilityListener(
+      JobTypeAvailibilityListener jobTypeAvailibilityListener) {
+    this.jobTypeAvailabilityListener = jobTypeAvailibilityListener;
+  }
+
+  private void notifyJobCreated(DirectBuffer jobType) {
+    jobTypeAvailabilityListener.onJobCreated(jobType);
+  }
+
+  private void notifyJobNotActivatable(DirectBuffer jobType) {
+    jobTypeAvailabilityListener.onJobNotActivatable(jobType);
   }
 
   public enum State {
