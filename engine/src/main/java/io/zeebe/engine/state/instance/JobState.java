@@ -48,6 +48,9 @@ public class JobState {
   private final DbCompositeKey<DbString, DbLong> typeJobKey;
   private final ColumnFamily<DbCompositeKey<DbString, DbLong>, DbNil> activatableColumnFamily;
 
+  private final DbLong jobTypeCount;
+  private final ColumnFamily<DbString, DbLong> activatableCountColumnFamily;
+
   // timeout => key
   private final DbLong deadlineKey;
   private final DbCompositeKey<DbLong, DbLong> deadlineJobKey;
@@ -76,6 +79,11 @@ public class JobState {
     activatableColumnFamily =
         zeebeDb.createColumnFamily(
             ZbColumnFamilies.JOB_ACTIVATABLE, dbContext, typeJobKey, DbNil.INSTANCE);
+
+    jobTypeCount = new DbLong();
+    activatableCountColumnFamily =
+        zeebeDb.createColumnFamily(
+            ZbColumnFamilies.JOB_ACTIVATABLE_COUNT, dbContext, jobTypeKey, jobTypeCount);
 
     deadlineKey = new DbLong();
     deadlineJobKey = new DbCompositeKey<>(deadlineKey, jobKey);
@@ -291,11 +299,17 @@ public class JobState {
     EnsureUtil.ensureNotNullOrEmpty("type", type);
 
     jobTypeKey.wrapBuffer(type);
-    final boolean firstActivatableJob = !activatableColumnFamily.existsPrefix(jobTypeKey);
-
     jobKey.wrapLong(key);
+
     activatableColumnFamily.put(typeJobKey, DbNil.INSTANCE);
-    if (firstActivatableJob) {
+    // update count
+    final DbLong count = activatableCountColumnFamily.get(jobTypeKey);
+    if (count != null && count.getValue() != 0) {
+      count.wrapLong(count.getValue() + 1);
+      activatableCountColumnFamily.put(jobTypeKey, count);
+    } else {
+      jobTypeCount.wrapLong(1);
+      activatableCountColumnFamily.put(jobTypeKey, jobTypeCount);
       notifyJobAvailable(type);
     }
   }
@@ -304,7 +318,18 @@ public class JobState {
     EnsureUtil.ensureNotNullOrEmpty("type", type);
 
     jobTypeKey.wrapBuffer(type);
-    activatableColumnFamily.delete(typeJobKey);
+    if (activatableColumnFamily.exists(typeJobKey)) {
+      activatableColumnFamily.delete(typeJobKey);
+      // update count
+      final DbLong count = activatableCountColumnFamily.get(jobTypeKey);
+      final long newCount = count.getValue() - 1;
+      if (newCount == 0) {
+        activatableCountColumnFamily.delete(jobTypeKey);
+      } else {
+        count.wrapLong(newCount);
+        activatableCountColumnFamily.put(jobTypeKey, count);
+      }
+    }
   }
 
   private void removeJobDeadline(long deadline) {

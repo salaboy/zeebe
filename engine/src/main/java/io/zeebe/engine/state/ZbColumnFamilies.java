@@ -45,6 +45,7 @@ public enum ZbColumnFamilies {
   JOB_STATES,
   JOB_DEADLINES,
   JOB_ACTIVATABLE,
+  JOB_ACTIVATABLE_COUNT,
 
   // message
   MESSAGE_KEY,
@@ -77,5 +78,5 @@ public enum ZbColumnFamilies {
 
   BLACKLIST,
 
-  EXPORTER
+  EXPORTER;
 }
