@@ -10,7 +10,7 @@ package io.zeebe.transport.backpressure;
 import com.netflix.concurrency.limits.Limiter.Listener;
 import java.util.Optional;
 
-public class NoLimitsLimiter implements RequestLimiter {
+public class NoLimitsLimiter implements RequestLimiter<Void> {
 
   public static Listener doNothingListener =
       new Listener() {
@@ -25,7 +25,7 @@ public class NoLimitsLimiter implements RequestLimiter {
       };
 
   @Override
-  public Optional<Listener> onRequest() {
+  public Optional<Listener> onRequest(Void v) {
     return Optional.of(doNothingListener);
   }
 

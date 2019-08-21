@@ -11,8 +11,10 @@ import com.netflix.concurrency.limits.limiter.AbstractLimiter;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.Supplier;
 
-public class ServerTransportRequestLimiter extends AbstractLimiter<Void> implements RequestLimiter {
+public class ServerTransportRequestLimiter extends AbstractLimiter<Void>
+    implements RequestLimiter<Supplier<Boolean>> {
 
   private final Map<Long, Listener> responseListeners = new HashMap<>();
 
@@ -25,18 +27,13 @@ public class ServerTransportRequestLimiter extends AbstractLimiter<Void> impleme
   }
 
   @Override
-  public Optional<Listener> acquire(Void context) {
+  public Optional<Listener> acquire(Void v) {
     if (getInflight() >= getLimit()) {
       // drop
       return createRejectedListener();
     } else {
       return Optional.of(createListener());
     }
-  }
-
-  @Override
-  public Optional<Listener> onRequest() {
-    return acquire(null);
   }
 
   @Override
@@ -49,6 +46,15 @@ public class ServerTransportRequestLimiter extends AbstractLimiter<Void> impleme
     final Listener listener = responseListeners.remove(requestId);
     if (listener != null) {
       listener.onSuccess();
+    }
+  }
+
+  @Override
+  public Optional<Listener> onRequest(Supplier<Boolean> isPriority) {
+    if (isPriority.get()) {
+      return Optional.of(createListener());
+    } else {
+      return acquire(null);
     }
   }
 

@@ -10,13 +10,13 @@ package io.zeebe.transport.backpressure;
 import com.netflix.concurrency.limits.Limiter.Listener;
 import java.util.Optional;
 
-public interface RequestLimiter {
-
-  Optional<Listener> onRequest();
+public interface RequestLimiter<Context> {
 
   void registerListener(long requestId, Listener listener);
 
   void onResponse(long requestId);
 
   int getLimit();
+
+  Optional<Listener> onRequest(Context o);
 }
