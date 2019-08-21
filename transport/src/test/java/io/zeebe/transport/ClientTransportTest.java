@@ -25,6 +25,8 @@ import io.zeebe.test.util.AutoCloseableRule;
 import io.zeebe.test.util.TestUtil;
 import io.zeebe.test.util.io.FailingBufferWriter;
 import io.zeebe.test.util.io.FailingBufferWriter.FailingBufferWriterException;
+import io.zeebe.transport.backpressure.NoLimitsLimiter;
+import io.zeebe.transport.backpressure.RequestLimiter;
 import io.zeebe.transport.impl.TransportChannel;
 import io.zeebe.transport.impl.TransportHeaderDescriptor;
 import io.zeebe.transport.impl.util.SocketUtil;
@@ -75,6 +77,7 @@ public class ClientTransportTest {
   @Rule public RuleChain ruleChain = RuleChain.outerRule(actorSchedulerRule).around(closeables);
   protected Dispatcher clientReceiveBuffer;
   protected ClientTransport clientTransport;
+  private RequestLimiter limiter = new NoLimitsLimiter();
 
   @Before
   public void setUp() {
@@ -308,7 +311,7 @@ public class ClientTransportTest {
         new SendMessagesHandler(messagesToExhaustReceiveBuffer, largeBuf);
 
     buildServerTransport(
-        b -> b.bindAddress(SERVER_ADDRESS1.toInetSocketAddress()).build(handler, null));
+        b -> b.bindAddress(SERVER_ADDRESS1.toInetSocketAddress()).build(handler, null, limiter));
 
     final RecordingMessageHandler clientHandler = new RecordingMessageHandler();
     final ClientInputMessageSubscription clientSubscription =
@@ -364,7 +367,7 @@ public class ClientTransportTest {
     buildServerTransport(
         b ->
             b.bindAddress(SERVER_ADDRESS1.toInetSocketAddress())
-                .build(null, new EchoRequestResponseHandler()));
+                .build(null, new EchoRequestResponseHandler(), limiter));
 
     final RecordingChannelListener channelListener = new RecordingChannelListener();
     clientTransport.registerChannelListener(channelListener).join();
@@ -396,7 +399,7 @@ public class ClientTransportTest {
     buildServerTransport(
         b ->
             b.bindAddress(SERVER_ADDRESS1.toInetSocketAddress())
-                .build(null, new EchoRequestResponseHandler()));
+                .build(null, new EchoRequestResponseHandler(), limiter));
 
     final RecordingChannelListener channelListener = new RecordingChannelListener();
     clientTransport.registerChannelListener(channelListener).join();
@@ -428,7 +431,7 @@ public class ClientTransportTest {
     buildServerTransport(
         b ->
             b.bindAddress(SERVER_ADDRESS1.toInetSocketAddress())
-                .build(null, new EchoRequestResponseHandler()));
+                .build(null, new EchoRequestResponseHandler(), limiter));
 
     final RecordingChannelListener channelListener = new RecordingChannelListener();
     clientTransport.registerChannelListener(channelListener).join();
@@ -457,7 +460,7 @@ public class ClientTransportTest {
     buildServerTransport(
         b ->
             b.bindAddress(SERVER_ADDRESS1.toInetSocketAddress())
-                .build(null, new EchoRequestResponseHandler()));
+                .build(null, new EchoRequestResponseHandler(), limiter));
 
     clientTransport.registerEndpoint(NODE_ID1, SERVER_ADDRESS1);
 
@@ -476,7 +479,7 @@ public class ClientTransportTest {
     buildServerTransport(
         b ->
             b.bindAddress(SERVER_ADDRESS1.toInetSocketAddress())
-                .build(null, new EchoRequestResponseHandler()));
+                .build(null, new EchoRequestResponseHandler(), limiter));
 
     clientTransport.registerEndpoint(NODE_ID1, SERVER_ADDRESS1);
 
@@ -505,7 +508,7 @@ public class ClientTransportTest {
     buildServerTransport(
         b ->
             b.bindAddress(SERVER_ADDRESS1.toInetSocketAddress())
-                .build(null, new EchoRequestResponseHandler()));
+                .build(null, new EchoRequestResponseHandler(), limiter));
 
     // then the request was not serialized more than once
     response.join();
@@ -521,7 +524,7 @@ public class ClientTransportTest {
     buildServerTransport(
         b ->
             b.bindAddress(SERVER_ADDRESS1.toInetSocketAddress())
-                .build(null, new EchoRequestResponseHandler()));
+                .build(null, new EchoRequestResponseHandler(), limiter));
 
     clientTransport.registerEndpoint(NODE_ID1, SERVER_ADDRESS1);
 
@@ -539,7 +542,7 @@ public class ClientTransportTest {
     buildServerTransport(
         b ->
             b.bindAddress(SERVER_ADDRESS1.toInetSocketAddress())
-                .build(null, new EchoRequestResponseHandler()));
+                .build(null, new EchoRequestResponseHandler(), limiter));
 
     clientTransport.registerEndpoint(NODE_ID1, SERVER_ADDRESS1);
 
@@ -574,7 +577,9 @@ public class ClientTransportTest {
         };
 
     buildServerTransport(
-        b -> b.bindAddress(SERVER_ADDRESS1.toInetSocketAddress()).build(null, requestHandler));
+        b ->
+            b.bindAddress(SERVER_ADDRESS1.toInetSocketAddress())
+                .build(null, requestHandler, limiter));
 
     clientTransport.registerEndpoint(NODE_ID1, SERVER_ADDRESS1);
 
@@ -597,7 +602,9 @@ public class ClientTransportTest {
     final RecordingMessageHandler messageHandler = new RecordingMessageHandler();
 
     buildServerTransport(
-        b -> b.bindAddress(SERVER_ADDRESS1.toInetSocketAddress()).build(messageHandler, null));
+        b ->
+            b.bindAddress(SERVER_ADDRESS1.toInetSocketAddress())
+                .build(messageHandler, null, limiter));
 
     clientTransport.registerEndpoint(NODE_ID1, SERVER_ADDRESS1);
 
@@ -614,7 +621,10 @@ public class ClientTransportTest {
     buildServerTransport(
         b ->
             b.bindAddress(SERVER_ADDRESS1.toInetSocketAddress())
-                .build(null, (output, remoteAddress, buffer, offset, length, requestId) -> false));
+                .build(
+                    null,
+                    (output, remoteAddress, buffer, offset, length, requestId) -> false,
+                    limiter));
 
     final BufferWriter writer = mock(BufferWriter.class);
     when(writer.getLength()).thenReturn(16);
@@ -639,7 +649,7 @@ public class ClientTransportTest {
     buildServerTransport(
         b ->
             b.bindAddress(SERVER_ADDRESS1.toInetSocketAddress())
-                .build(null, new EchoRequestResponseHandler()));
+                .build(null, new EchoRequestResponseHandler(), limiter));
 
     // when
 
@@ -663,7 +673,9 @@ public class ClientTransportTest {
     final RecordingMessageHandler messageHandler = new RecordingMessageHandler();
 
     buildServerTransport(
-        b -> b.bindAddress(SERVER_ADDRESS1.toInetSocketAddress()).build(messageHandler, null));
+        b ->
+            b.bindAddress(SERVER_ADDRESS1.toInetSocketAddress())
+                .build(messageHandler, null, limiter));
 
     // when
     clientTransport.registerEndpoint(NODE_ID1, SERVER_ADDRESS1);
@@ -688,7 +700,8 @@ public class ClientTransportTest {
                     (output, remoteAddress, buffer, offset, length, requestId) -> {
                       requestReceived.set(true);
                       return false;
-                    }));
+                    },
+                    limiter));
 
     clientTransport.registerEndpoint(NODE_ID1, SERVER_ADDRESS1);
 
@@ -724,7 +737,7 @@ public class ClientTransportTest {
     buildServerTransport(
         b ->
             b.bindAddress(SERVER_ADDRESS1.toInetSocketAddress())
-                .build(null, new EchoRequestResponseHandler()));
+                .build(null, new EchoRequestResponseHandler(), limiter));
 
     final Object monitor = new Object();
     final AtomicBoolean isWaiting = new AtomicBoolean(false);
@@ -796,7 +809,9 @@ public class ClientTransportTest {
     final RecordingMessageHandler messageHandler = new RecordingMessageHandler();
 
     buildServerTransport(
-        b -> b.bindAddress(SERVER_ADDRESS1.toInetSocketAddress()).build(messageHandler, null));
+        b ->
+            b.bindAddress(SERVER_ADDRESS1.toInetSocketAddress())
+                .build(messageHandler, null, limiter));
 
     clientTransport.registerEndpoint(nodeId, SERVER_ADDRESS1);
 
@@ -829,7 +844,7 @@ public class ClientTransportTest {
     buildServerTransport(
         b ->
             b.bindAddress(SERVER_ADDRESS1.toInetSocketAddress())
-                .build(null, new EchoRequestResponseHandler()));
+                .build(null, new EchoRequestResponseHandler(), limiter));
 
     clientTransport.registerEndpoint(nodeId, SERVER_ADDRESS1);
 
@@ -849,7 +864,7 @@ public class ClientTransportTest {
     buildServerTransport(
         b ->
             b.bindAddress(SERVER_ADDRESS1.toInetSocketAddress())
-                .build(null, new EchoRequestResponseHandler()));
+                .build(null, new EchoRequestResponseHandler(), limiter));
 
     clientTransport.registerEndpoint(nodeId, SERVER_ADDRESS1);
 
@@ -882,7 +897,7 @@ public class ClientTransportTest {
     buildServerTransport(
         b ->
             b.bindAddress(SERVER_ADDRESS1.toInetSocketAddress())
-                .build(null, new EchoRequestResponseHandler()));
+                .build(null, new EchoRequestResponseHandler(), limiter));
 
     clientTransport.registerEndpointAndAwaitChannel(NODE_ID1, SERVER_ADDRESS1);
 
@@ -914,7 +929,7 @@ public class ClientTransportTest {
     buildServerTransport(
         b ->
             b.bindAddress(SERVER_ADDRESS1.toInetSocketAddress())
-                .build(null, new EchoRequestResponseHandler()));
+                .build(null, new EchoRequestResponseHandler(), limiter));
 
     final RecordingChannelListener channelListener = new RecordingChannelListener();
     clientTransport.registerChannelListener(channelListener).join();
@@ -946,7 +961,7 @@ public class ClientTransportTest {
     buildServerTransport(
         b ->
             b.bindAddress(SERVER_ADDRESS1.toInetSocketAddress())
-                .build(null, new EchoRequestResponseHandler()));
+                .build(null, new EchoRequestResponseHandler(), limiter));
 
     final RecordingChannelListener channelListener = new RecordingChannelListener();
     clientTransport.registerChannelListener(channelListener).join();

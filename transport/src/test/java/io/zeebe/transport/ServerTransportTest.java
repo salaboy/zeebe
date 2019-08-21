@@ -16,6 +16,8 @@ import io.zeebe.dispatcher.Dispatcher;
 import io.zeebe.dispatcher.Dispatchers;
 import io.zeebe.test.util.AutoCloseableRule;
 import io.zeebe.test.util.TestUtil;
+import io.zeebe.transport.backpressure.NoLimitsLimiter;
+import io.zeebe.transport.backpressure.RequestLimiter;
 import io.zeebe.transport.impl.util.SocketUtil;
 import io.zeebe.transport.util.RecordingChannelListener;
 import io.zeebe.transport.util.RecordingMessageHandler;
@@ -49,6 +51,7 @@ public class ServerTransportTest {
   protected RecordingMessageHandler clientHandler = new RecordingMessageHandler();
 
   protected ClientInputMessageSubscription clientSubscription;
+  private RequestLimiter limiter = new NoLimitsLimiter();
 
   @Before
   public void setUp() {
@@ -70,7 +73,7 @@ public class ServerTransportTest {
         Transports.newServerTransport()
             .scheduler(actorSchedulerRule.get())
             .bindAddress(SERVER_ADDRESS.toInetSocketAddress())
-            .build(serverHandler, null);
+            .build(serverHandler, null, limiter);
     closeables.manage(serverTransport);
 
     clientSubscription = clientTransport.openSubscription("receiver", clientHandler).join();

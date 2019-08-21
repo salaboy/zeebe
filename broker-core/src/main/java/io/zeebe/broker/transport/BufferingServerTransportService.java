@@ -15,6 +15,7 @@ import io.zeebe.servicecontainer.ServiceStartContext;
 import io.zeebe.servicecontainer.ServiceStopContext;
 import io.zeebe.transport.BufferingServerTransport;
 import io.zeebe.transport.Transports;
+import io.zeebe.transport.backpressure.RequestLimiter;
 import io.zeebe.transport.impl.memory.NonBlockingMemoryPool;
 import io.zeebe.util.ByteValue;
 import io.zeebe.util.sched.ActorScheduler;
@@ -31,12 +32,17 @@ public class BufferingServerTransportService implements Service<BufferingServerT
   protected final InetSocketAddress bindAddress;
   protected BufferingServerTransport serverTransport;
   private final ByteValue sendBufferSize;
+  private final RequestLimiter limiter;
 
   public BufferingServerTransportService(
-      String readableName, InetSocketAddress bindAddress, ByteValue sendBufferSize) {
+      String readableName,
+      InetSocketAddress bindAddress,
+      ByteValue sendBufferSize,
+      RequestLimiter limiter) {
     this.readableName = readableName;
     this.bindAddress = bindAddress;
     this.sendBufferSize = sendBufferSize;
+    this.limiter = limiter;
   }
 
   @Override
@@ -50,7 +56,7 @@ public class BufferingServerTransportService implements Service<BufferingServerT
             .bindAddress(bindAddress)
             .messageMemoryPool(new NonBlockingMemoryPool(sendBufferSize))
             .scheduler(scheduler)
-            .buildBuffering(receiveBuffer);
+            .buildBuffering(receiveBuffer, limiter);
 
     LOG.info("Bound {} to {}", readableName, bindAddress);
   }

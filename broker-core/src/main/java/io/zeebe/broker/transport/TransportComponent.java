@@ -22,11 +22,23 @@ import io.zeebe.transport.ServerMessageHandler;
 import io.zeebe.transport.ServerRequestHandler;
 import io.zeebe.transport.ServerTransport;
 import io.zeebe.transport.SocketAddress;
+import io.zeebe.transport.backpressure.ServerTransportRequestLimiter;
 import io.zeebe.util.ByteValue;
 import io.zeebe.util.sched.future.ActorFuture;
 import java.net.InetSocketAddress;
 
 public class TransportComponent implements Component {
+
+  private final ServerTransportRequestLimiter limiter;
+
+  public TransportComponent() {
+    limiter = getDefaultLimiter();
+  }
+
+  private static ServerTransportRequestLimiter getDefaultLimiter() {
+    return ServerTransportRequestLimiter.builder().build();
+  }
+
   @Override
   public void init(final SystemContext context) {
     createSocketBindings(context);
@@ -48,7 +60,7 @@ public class TransportComponent implements Component {
     context.addRequiredStartAction(commandApiFuture);
 
     final CommandApiMessageHandlerService messageHandlerService =
-        new CommandApiMessageHandlerService();
+        new CommandApiMessageHandlerService(limiter);
     serviceContainer
         .createService(COMMAND_API_MESSAGE_HANDLER, messageHandlerService)
         .groupReference(
@@ -85,7 +97,7 @@ public class TransportComponent implements Component {
       final ServiceName<? extends ServerRequestHandler> requestHandlerDependency,
       final ServiceName<? extends ServerMessageHandler> messageHandlerDependency) {
     final ServerTransportService service =
-        new ServerTransportService(name, bindAddress, sendBufferSize);
+        new ServerTransportService(name, bindAddress, sendBufferSize, limiter);
 
     systemContext.addResourceReleasingDelegate(service.getReleasingResourcesDelegate());
 

@@ -14,6 +14,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import io.zeebe.dispatcher.Dispatcher;
 import io.zeebe.dispatcher.Dispatchers;
 import io.zeebe.test.util.AutoCloseableRule;
+import io.zeebe.transport.backpressure.NoLimitsLimiter;
+import io.zeebe.transport.backpressure.RequestLimiter;
 import io.zeebe.transport.impl.TransportHeaderDescriptor;
 import io.zeebe.transport.impl.util.SocketUtil;
 import io.zeebe.transport.util.RecordingMessageHandler;
@@ -43,6 +45,7 @@ public class BufferingServerTransportTest {
 
   protected RecordingMessageHandler serverHandler = new RecordingMessageHandler();
   private Dispatcher serverReceiveBuffer;
+  private RequestLimiter limiter = new NoLimitsLimiter();
 
   @Before
   public void setUp() {
@@ -61,7 +64,7 @@ public class BufferingServerTransportTest {
         Transports.newServerTransport()
             .scheduler(actorSchedulerRule.get())
             .bindAddress(SERVER_ADDRESS.toInetSocketAddress())
-            .buildBuffering(serverReceiveBuffer);
+            .buildBuffering(serverReceiveBuffer, limiter);
     closeables.manage(serverTransport);
   }
 

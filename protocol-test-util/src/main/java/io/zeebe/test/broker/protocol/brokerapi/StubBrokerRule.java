@@ -17,6 +17,8 @@ import io.zeebe.test.broker.protocol.brokerapi.data.Topology;
 import io.zeebe.transport.ServerTransport;
 import io.zeebe.transport.SocketAddress;
 import io.zeebe.transport.Transports;
+import io.zeebe.transport.backpressure.NoLimitsLimiter;
+import io.zeebe.transport.backpressure.RequestLimiter;
 import io.zeebe.transport.impl.util.SocketUtil;
 import io.zeebe.util.sched.ActorScheduler;
 import io.zeebe.util.sched.clock.ControlledActorClock;
@@ -29,13 +31,16 @@ public class StubBrokerRule extends ExternalResource {
   public static final int TEST_PARTITION_ID = DEPLOYMENT_PARTITION;
   protected final int nodeId;
   protected final SocketAddress socketAddress;
+
   protected ActorScheduler scheduler;
   protected ServerTransport transport;
   protected StubResponseChannelHandler channelHandler;
   protected MsgPackHelper msgPackHelper;
   protected AtomicReference<Topology> currentTopology = new AtomicReference<>();
+
   private final ControlledActorClock clock = new ControlledActorClock();
   private final int partitionCount;
+  private final RequestLimiter limiter;
 
   public StubBrokerRule() {
     this(0);
@@ -49,6 +54,7 @@ public class StubBrokerRule extends ExternalResource {
     this.nodeId = nodeId;
     this.socketAddress = SocketUtil.getNextAddress();
     this.partitionCount = partitionCount;
+    this.limiter = new NoLimitsLimiter();
   }
 
   @Override
@@ -106,7 +112,7 @@ public class StubBrokerRule extends ExternalResource {
           Transports.newServerTransport()
               .bindAddress(socketAddress.toInetSocketAddress())
               .scheduler(scheduler)
-              .build(null, channelHandler);
+              .build(null, channelHandler, limiter);
     } else {
       throw new RuntimeException("transport already open");
     }

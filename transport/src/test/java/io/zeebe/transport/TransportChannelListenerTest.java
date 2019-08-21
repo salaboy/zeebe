@@ -15,6 +15,8 @@ import io.zeebe.UnstableTest;
 import io.zeebe.dispatcher.FragmentHandler;
 import io.zeebe.test.util.AutoCloseableRule;
 import io.zeebe.test.util.TestUtil;
+import io.zeebe.transport.backpressure.NoLimitsLimiter;
+import io.zeebe.transport.backpressure.RequestLimiter;
 import io.zeebe.transport.impl.DefaultChannelFactory;
 import io.zeebe.transport.impl.RemoteAddressImpl;
 import io.zeebe.transport.impl.TransportChannel;
@@ -45,6 +47,7 @@ public class TransportChannelListenerTest {
   public AutoCloseableRule closeables = new AutoCloseableRule();
   @Rule public RuleChain ruleChain = RuleChain.outerRule(actorSchedulerRule).around(closeables);
   protected ServerTransport serverTransport;
+  private RequestLimiter limiter = new NoLimitsLimiter();
 
   @Before
   public void setUp() {
@@ -52,7 +55,7 @@ public class TransportChannelListenerTest {
         Transports.newServerTransport()
             .bindAddress(ADDRESS.toInetSocketAddress())
             .scheduler(actorSchedulerRule.get())
-            .build(null, null);
+            .build(null, null, limiter);
     closeables.manage(serverTransport);
   }
 

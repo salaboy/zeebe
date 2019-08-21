@@ -9,6 +9,7 @@ package io.zeebe.transport;
 
 import io.zeebe.dispatcher.Dispatcher;
 import io.zeebe.dispatcher.FragmentHandler;
+import io.zeebe.transport.backpressure.RequestLimiter;
 import io.zeebe.transport.impl.DefaultChannelFactory;
 import io.zeebe.transport.impl.ReceiveBufferHandler;
 import io.zeebe.transport.impl.RemoteAddressListImpl;
@@ -77,14 +78,16 @@ public class ServerTransportBuilder {
   }
 
   public ServerTransport build(
-      ServerMessageHandler messageHandler, ServerRequestHandler requestHandler) {
+      ServerMessageHandler messageHandler,
+      ServerRequestHandler requestHandler,
+      RequestLimiter limiter) {
     remoteAddressList = new RemoteAddressListImpl();
 
     final ServerActorContext actorContext = new ServerActorContext();
 
     final Sender sender = new Sender(actorContext, messageMemoryPool, null, null);
 
-    output = new ServerOutputImpl(sender);
+    output = new ServerOutputImpl(sender, limiter);
 
     receiveHandler(
         new ServerReceiveHandler(
@@ -99,7 +102,7 @@ public class ServerTransportBuilder {
     return new ServerTransport(actorContext, context);
   }
 
-  public BufferingServerTransport buildBuffering(Dispatcher receiveBuffer) {
+  public BufferingServerTransport buildBuffering(Dispatcher receiveBuffer, RequestLimiter limiter) {
     remoteAddressList = new RemoteAddressListImpl();
     receiveHandler(new ReceiveBufferHandler(receiveBuffer));
 
@@ -109,7 +112,7 @@ public class ServerTransportBuilder {
 
     final Sender sender = new Sender(actorContext, messageMemoryPool, null, null);
 
-    output = new ServerOutputImpl(sender);
+    output = new ServerOutputImpl(sender, limiter);
 
     final TransportContext context = buildTransportContext();
 

@@ -26,6 +26,8 @@ import static org.mockito.Mockito.when;
 import io.zeebe.dispatcher.Dispatcher;
 import io.zeebe.dispatcher.Dispatchers;
 import io.zeebe.test.util.AutoCloseableRule;
+import io.zeebe.transport.backpressure.NoLimitsLimiter;
+import io.zeebe.transport.backpressure.RequestLimiter;
 import io.zeebe.transport.impl.memory.NonBlockingMemoryPool;
 import io.zeebe.transport.impl.util.SocketUtil;
 import io.zeebe.transport.util.EchoRequestResponseHandler;
@@ -56,6 +58,7 @@ public class ClientTransportMemoryTest {
   protected ClientTransport clientTransport;
   private NonBlockingMemoryPool requestMemoryPoolSpy;
   private NonBlockingMemoryPool messageMemoryPoolSpy;
+  private RequestLimiter limiter = new NoLimitsLimiter();
 
   @Before
   public void setUp() {
@@ -136,7 +139,7 @@ public class ClientTransportMemoryTest {
     buildServerTransport(
         b ->
             b.bindAddress(SERVER_ADDRESS1.toInetSocketAddress())
-                .build(null, new EchoRequestResponseHandler()));
+                .build(null, new EchoRequestResponseHandler(), limiter));
 
     registerEndpoint();
 
@@ -175,7 +178,9 @@ public class ClientTransportMemoryTest {
     final RecordingMessageHandler messageHandler = new RecordingMessageHandler();
 
     buildServerTransport(
-        b -> b.bindAddress(SERVER_ADDRESS1.toInetSocketAddress()).build(messageHandler, null));
+        b ->
+            b.bindAddress(SERVER_ADDRESS1.toInetSocketAddress())
+                .build(messageHandler, null, limiter));
 
     clientTransport.registerEndpoint(NODE_ID1, SERVER_ADDRESS1);
 

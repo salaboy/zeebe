@@ -11,6 +11,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import io.zeebe.test.util.AutoCloseableRule;
 import io.zeebe.test.util.TestUtil;
+import io.zeebe.transport.backpressure.NoLimitsLimiter;
+import io.zeebe.transport.backpressure.RequestLimiter;
 import io.zeebe.transport.impl.ControlMessages;
 import io.zeebe.transport.impl.util.SocketUtil;
 import io.zeebe.util.sched.clock.ActorClock;
@@ -37,6 +39,7 @@ public class ClientChannelKeepAliveTest {
   public ActorSchedulerRule actorSchedulerRule = new ActorSchedulerRule(3, clock);
   @Rule public RuleChain ruleChain = RuleChain.outerRule(actorSchedulerRule).around(closeables);
   protected ControlMessageRecorder serverRecorder;
+  private RequestLimiter limiter = new NoLimitsLimiter();
 
   @Before
   public void setUp() {
@@ -51,7 +54,7 @@ public class ClientChannelKeepAliveTest {
             .bindAddress(bindAddress.toInetSocketAddress())
             .scheduler(actorSchedulerRule.get())
             .controlMessageListener(recorder)
-            .build(null, null);
+            .build(null, null, limiter);
     closeables.manage(serverTransport);
 
     return serverTransport;

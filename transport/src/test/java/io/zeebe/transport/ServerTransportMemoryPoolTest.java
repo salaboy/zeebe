@@ -20,6 +20,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import io.zeebe.test.util.AutoCloseableRule;
+import io.zeebe.transport.backpressure.NoLimitsLimiter;
+import io.zeebe.transport.backpressure.RequestLimiter;
 import io.zeebe.transport.impl.memory.TransportMemoryPool;
 import io.zeebe.transport.impl.util.SocketUtil;
 import io.zeebe.util.buffer.BufferWriter;
@@ -44,6 +46,7 @@ public class ServerTransportMemoryPoolTest {
   protected ServerTransport serverTransport;
 
   private TransportMemoryPool messageMemoryPool;
+  private RequestLimiter limiter = new NoLimitsLimiter();
 
   @Before
   public void setUp() {
@@ -54,7 +57,7 @@ public class ServerTransportMemoryPoolTest {
             .bindAddress(ADDRESS.toInetSocketAddress())
             .scheduler(actorSchedulerRule.get())
             .messageMemoryPool(messageMemoryPool)
-            .build(null, null);
+            .build(null, null, limiter);
   }
 
   @After

@@ -10,6 +10,8 @@ package io.zeebe.transport;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.zeebe.test.util.AutoCloseableRule;
+import io.zeebe.transport.backpressure.NoLimitsLimiter;
+import io.zeebe.transport.backpressure.RequestLimiter;
 import io.zeebe.transport.impl.TransportHeaderDescriptor;
 import io.zeebe.transport.impl.util.SocketUtil;
 import io.zeebe.util.buffer.DirectBufferWriter;
@@ -28,6 +30,7 @@ public class MixedProtocolsTest {
   @Rule public RuleChain ruleChain = RuleChain.outerRule(actorSchedulerRule).around(closeables);
   protected final UnsafeBuffer requestBuffer = new UnsafeBuffer(new byte[1024]);
   protected final DirectBufferWriter bufferWriter = new DirectBufferWriter();
+  private RequestLimiter limiter = new NoLimitsLimiter();
 
   @Test
   public void shouldEchoMessages() throws InterruptedException, ExecutionException {
@@ -45,7 +48,7 @@ public class MixedProtocolsTest {
         Transports.newServerTransport()
             .bindAddress(addr.toInetSocketAddress())
             .scheduler(actorSchedulerRule.get())
-            .build(handler, handler);
+            .build(handler, handler, limiter);
     closeables.manage(serverTransport);
 
     clientTransport.registerEndpointAndAwaitChannel(nodeId, addr);

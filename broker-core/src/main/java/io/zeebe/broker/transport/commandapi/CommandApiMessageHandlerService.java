@@ -12,19 +12,25 @@ import io.zeebe.servicecontainer.Service;
 import io.zeebe.servicecontainer.ServiceGroupReference;
 import io.zeebe.servicecontainer.ServiceStartContext;
 import io.zeebe.servicecontainer.ServiceStopContext;
+import io.zeebe.transport.backpressure.ServerTransportRequestLimiter;
 
 public class CommandApiMessageHandlerService implements Service<CommandApiMessageHandler> {
   protected CommandApiMessageHandler service;
-
   protected final ServiceGroupReference<Partition> leaderPartitionsGroupReference =
       ServiceGroupReference.<Partition>create()
           .onAdd((name, partition) -> service.addPartition(partition.getLogStream()))
           .onRemove((name, partition) -> service.removePartition(partition.getLogStream()))
           .build();
 
+  private final ServerTransportRequestLimiter limiter;
+
+  public CommandApiMessageHandlerService(ServerTransportRequestLimiter limiter) {
+    this.limiter = limiter;
+  }
+
   @Override
   public void start(ServiceStartContext startContext) {
-    service = new CommandApiMessageHandler();
+    service = new RateLimitedCommandApiMessageHandler(limiter);
   }
 
   @Override

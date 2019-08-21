@@ -9,6 +9,7 @@ package io.zeebe.transport.impl;
 
 import io.zeebe.transport.ServerOutput;
 import io.zeebe.transport.ServerResponse;
+import io.zeebe.transport.backpressure.RequestLimiter;
 import io.zeebe.transport.impl.sender.OutgoingMessage;
 import io.zeebe.transport.impl.sender.Sender;
 import io.zeebe.transport.impl.sender.TransportHeaderWriter;
@@ -21,8 +22,11 @@ public class ServerOutputImpl implements ServerOutput {
 
   private final Sender sender;
 
-  public ServerOutputImpl(Sender sender) {
+  private final RequestLimiter limiter;
+
+  public ServerOutputImpl(Sender sender, RequestLimiter limiter) {
     this.sender = sender;
+    this.limiter = limiter;
   }
 
   @Override
@@ -64,6 +68,8 @@ public class ServerOutputImpl implements ServerOutput {
       try {
         final int remoteStreamId = response.getRemoteStreamId();
         final long requestId = response.getRequestId();
+
+        limiter.onResponse(requestId);
 
         final UnsafeBuffer bufferView = new UnsafeBuffer(allocatedBuffer);
         final TransportHeaderWriter headerWriter = new TransportHeaderWriter();
