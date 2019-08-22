@@ -16,7 +16,7 @@ import io.zeebe.transport.ServerMessageHandler;
 import io.zeebe.transport.ServerRequestHandler;
 import io.zeebe.transport.ServerTransport;
 import io.zeebe.transport.Transports;
-import io.zeebe.transport.backpressure.ServerTransportRequestLimiter;
+import io.zeebe.transport.backpressure.RequestLimiter;
 import io.zeebe.transport.impl.memory.NonBlockingMemoryPool;
 import io.zeebe.util.ByteValue;
 import io.zeebe.util.sched.ActorScheduler;
@@ -34,13 +34,13 @@ public class ServerTransportService implements Service<ServerTransport> {
   protected final InetSocketAddress bindAddress;
   protected ServerTransport serverTransport;
   private final ByteValue sendBufferSize;
-  private final ServerTransportRequestLimiter limiter;
+  private final RequestLimiter limiter;
 
   public ServerTransportService(
       String readableName,
       InetSocketAddress bindAddress,
       ByteValue sendBufferSize,
-      ServerTransportRequestLimiter limiter) {
+      RequestLimiter limiter) {
     this.readableName = readableName;
     this.bindAddress = bindAddress;
     this.sendBufferSize = sendBufferSize;

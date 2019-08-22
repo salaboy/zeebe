@@ -22,6 +22,8 @@ import io.zeebe.transport.ServerMessageHandler;
 import io.zeebe.transport.ServerRequestHandler;
 import io.zeebe.transport.ServerTransport;
 import io.zeebe.transport.SocketAddress;
+import io.zeebe.transport.backpressure.PartitionedServerTransportRequestLimter;
+import io.zeebe.transport.backpressure.RequestLimiter;
 import io.zeebe.transport.backpressure.ServerTransportRequestLimiter;
 import io.zeebe.util.ByteValue;
 import io.zeebe.util.sched.future.ActorFuture;
@@ -29,14 +31,14 @@ import java.net.InetSocketAddress;
 
 public class TransportComponent implements Component {
 
-  private final ServerTransportRequestLimiter limiter;
+  private final RequestLimiter limiter;
 
   public TransportComponent() {
     limiter = getDefaultLimiter();
   }
 
-  private static ServerTransportRequestLimiter getDefaultLimiter() {
-    return ServerTransportRequestLimiter.builder().build();
+  private static RequestLimiter getDefaultLimiter() {
+    return new PartitionedServerTransportRequestLimter(ServerTransportRequestLimiter.builder());
   }
 
   @Override

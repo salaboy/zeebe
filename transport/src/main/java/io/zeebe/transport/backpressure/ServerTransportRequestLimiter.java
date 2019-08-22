@@ -8,15 +8,10 @@
 package io.zeebe.transport.backpressure;
 
 import com.netflix.concurrency.limits.limiter.AbstractLimiter;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.Optional;
-import java.util.function.Supplier;
 
-public class ServerTransportRequestLimiter extends AbstractLimiter<Void>
-    implements RequestLimiter<Supplier<Boolean>> {
-
-  private final Map<Long, Listener> responseListeners = new HashMap<>();
+public class ServerTransportRequestLimiter
+    extends AbstractLimiter<ServerTransportRequestLimiterContext> {
 
   protected ServerTransportRequestLimiter(Builder builder) {
     super(builder);
@@ -27,34 +22,12 @@ public class ServerTransportRequestLimiter extends AbstractLimiter<Void>
   }
 
   @Override
-  public Optional<Listener> acquire(Void v) {
-    if (getInflight() >= getLimit()) {
+  public Optional<Listener> acquire(ServerTransportRequestLimiterContext context) {
+    if (getInflight() >= getLimit() && !context.isPriority()) {
       // drop
       return createRejectedListener();
     } else {
       return Optional.of(createListener());
-    }
-  }
-
-  @Override
-  public void registerListener(long requestId, Listener listener) {
-    responseListeners.put(requestId, listener);
-  }
-
-  @Override
-  public void onResponse(long requestId) {
-    final Listener listener = responseListeners.remove(requestId);
-    if (listener != null) {
-      listener.onSuccess();
-    }
-  }
-
-  @Override
-  public Optional<Listener> onRequest(Supplier<Boolean> isPriority) {
-    if (isPriority.get()) {
-      return Optional.of(createListener());
-    } else {
-      return acquire(null);
     }
   }
 

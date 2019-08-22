@@ -12,11 +12,9 @@ import java.util.Optional;
 
 public interface RequestLimiter<Context> {
 
-  void registerListener(long requestId, Listener listener);
-
   void onResponse(long requestId);
 
-  int getLimit();
+  int getLimit(Context o);
 
   Optional<Listener> onRequest(Context o);
 }

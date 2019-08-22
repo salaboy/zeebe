@@ -30,13 +30,10 @@ public class NoLimitsLimiter implements RequestLimiter<Void> {
   }
 
   @Override
-  public void registerListener(long requestId, Listener listener) {}
-
-  @Override
   public void onResponse(long requestId) {}
 
   @Override
-  public int getLimit() {
+  public int getLimit(Void v) {
     return 0;
   }
 }

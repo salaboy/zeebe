@@ -15,13 +15,13 @@ import io.zeebe.protocol.record.intent.JobIntent;
 import io.zeebe.transport.RemoteAddress;
 import io.zeebe.transport.ServerOutput;
 import io.zeebe.transport.backpressure.RequestLimiter;
+import io.zeebe.transport.backpressure.ServerTransportRequestLimiterContext;
 import java.util.Optional;
-import java.util.function.Supplier;
 import org.agrona.DirectBuffer;
 
 public class RateLimitedCommandApiMessageHandler extends CommandApiMessageHandler {
 
-  private final RequestLimiter<Supplier<Boolean>> limiter;
+  private final RequestLimiter<ServerTransportRequestLimiterContext> limiter;
 
   public RateLimitedCommandApiMessageHandler(RequestLimiter limiter) {
     super();
@@ -36,21 +36,20 @@ public class RateLimitedCommandApiMessageHandler extends CommandApiMessageHandle
       int offset,
       int length,
       long requestId) {
-    final Optional<Listener> acquire =
-        limiter.onRequest(() -> isJobCompleteCommand(buffer, offset));
+    final var context = getLimiterContext(buffer, offset, requestId);
+    final Optional<Listener> acquire = limiter.onRequest(context);
     if (acquire.isPresent()) {
-      limiter.registerListener(requestId, acquire.get());
       return super.onRequest(output, remoteAddress, buffer, offset, length, requestId);
     } else {
-      Loggers.TRANSPORT_LOGGER.info("Requests over limit {}, dropping.", limiter.getLimit());
+      Loggers.TRANSPORT_LOGGER.info("Requests over limit {}, dropping.", limiter.getLimit(context));
       return errorResponseWriter
           .internalError("Backpressure")
           .tryWriteResponse(output, remoteAddress.getStreamId(), requestId);
     }
   }
 
-  public boolean isJobCompleteCommand(DirectBuffer buffer, int messageOffset) {
-
+  private ServerTransportRequestLimiterContext getLimiterContext(
+      DirectBuffer buffer, int messageOffset, long requestId) {
     messageHeaderDecoder.wrap(buffer, messageOffset);
     executeCommandRequestDecoder.wrap(
         buffer,
@@ -61,6 +60,9 @@ public class RateLimitedCommandApiMessageHandler extends CommandApiMessageHandle
     final ValueType eventType = executeCommandRequestDecoder.valueType();
     final short intent = executeCommandRequestDecoder.intent();
     final Intent commandIntent = Intent.fromProtocolValue(eventType, intent);
-    return commandIntent.equals(JobIntent.COMPLETE);
+    return new ServerTransportRequestLimiterContext(
+        executeCommandRequestDecoder.partitionId(),
+        commandIntent.equals(JobIntent.COMPLETE),
+        requestId);
   }
 }
