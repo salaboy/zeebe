@@ -9,6 +9,7 @@ package io.zeebe.broker.transport.commandapi;
 
 import com.netflix.concurrency.limits.Limiter.Listener;
 import io.zeebe.broker.Loggers;
+import io.zeebe.engine.metrics.RateLimitMetrics;
 import io.zeebe.protocol.record.ValueType;
 import io.zeebe.protocol.record.intent.Intent;
 import io.zeebe.protocol.record.intent.JobIntent;
@@ -22,10 +23,12 @@ import org.agrona.DirectBuffer;
 public class RateLimitedCommandApiMessageHandler extends CommandApiMessageHandler {
 
   private final RequestLimiter<ServerTransportRequestLimiterContext> limiter;
+  private final RateLimitMetrics metrics;
 
   public RateLimitedCommandApiMessageHandler(RequestLimiter limiter) {
     super();
     this.limiter = limiter;
+    this.metrics = new RateLimitMetrics();
   }
 
   @Override
@@ -38,9 +41,11 @@ public class RateLimitedCommandApiMessageHandler extends CommandApiMessageHandle
       long requestId) {
     final var context = getLimiterContext(buffer, offset, requestId);
     final Optional<Listener> acquire = limiter.onRequest(context);
+    metrics.receivedRequest(context.getPartitionId());
     if (acquire.isPresent()) {
       return super.onRequest(output, remoteAddress, buffer, offset, length, requestId);
     } else {
+      metrics.dropped(context.getPartitionId());
       Loggers.TRANSPORT_LOGGER.info("Requests over limit {}, dropping.", limiter.getLimit(context));
       return errorResponseWriter
           .internalError("Backpressure")

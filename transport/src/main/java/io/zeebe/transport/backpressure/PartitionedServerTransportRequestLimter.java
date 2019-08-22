@@ -12,11 +12,12 @@ import io.zeebe.transport.backpressure.ServerTransportRequestLimiter.Builder;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class PartitionedServerTransportRequestLimter
     implements RequestLimiter<ServerTransportRequestLimiterContext> {
 
-  private final Map<Long, Listener> responseListeners = new HashMap<>();
+  private final Map<Long, Listener> responseListeners = new ConcurrentHashMap<>();
   private final Map<Integer, ServerTransportRequestLimiter> partitionLimiters;
   private final Builder partitionLimiterBuilder;
 
