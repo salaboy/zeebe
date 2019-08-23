@@ -12,6 +12,7 @@ public class ServerTransportRequestLimiterContext {
   private final boolean isPriority;
   private final long requestId;
   private final long streamId;
+  private long startTime;
 
   public ServerTransportRequestLimiterContext(
       int partitionId, boolean isPriority, long requestId, long streamId) {
@@ -35,5 +36,13 @@ public class ServerTransportRequestLimiterContext {
 
   public long getStreamId() {
     return streamId;
+  }
+
+  public void setStartTime(long currentTimeMillis) {
+      this.startTime = currentTimeMillis;
+  }
+
+  public long getStartTime() {
+    return startTime;
   }
 }

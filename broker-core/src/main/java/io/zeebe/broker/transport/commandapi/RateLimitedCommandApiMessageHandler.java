@@ -71,7 +71,7 @@ public class RateLimitedCommandApiMessageHandler extends CommandApiMessageHandle
     final Intent commandIntent = Intent.fromProtocolValue(eventType, intent);
     return new ServerTransportRequestLimiterContext(
         executeCommandRequestDecoder.partitionId(),
-        commandIntent.equals(JobIntent.COMPLETE),
+        eventType.equals(ValueType.JOB) && commandIntent.equals(JobIntent.COMPLETE),
         requestId,
         streamId);
   }
