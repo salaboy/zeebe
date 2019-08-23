@@ -8,20 +8,21 @@
 package io.zeebe.transport.backpressure;
 
 import com.netflix.concurrency.limits.Limiter.Listener;
+import io.zeebe.transport.Loggers;
 import io.zeebe.transport.backpressure.ServerTransportRequestLimiter.Builder;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 
-public class PartitionedServerTransportRequestLimter
+public class PartitionedServerTransportRequestLimiter
     implements RequestLimiter<ServerTransportRequestLimiterContext> {
 
   private final Map<Long, Map<Long, Listener>> responseListeners = new ConcurrentHashMap<>();
   private final Map<Integer, ServerTransportRequestLimiter> partitionLimiters;
   private final Builder partitionLimiterBuilder;
 
-  public PartitionedServerTransportRequestLimter(Builder partitionLimiterBuilder) {
+  public PartitionedServerTransportRequestLimiter(Builder partitionLimiterBuilder) {
     this.partitionLimiterBuilder = partitionLimiterBuilder;
     this.partitionLimiters = new HashMap<>();
   }
@@ -31,6 +32,9 @@ public class PartitionedServerTransportRequestLimter
     final Listener listener = responseListeners.get(streamId).remove(requestId);
     if (listener != null) {
       listener.onSuccess();
+    }
+    else {
+      Loggers.TRANSPORT_LOGGER.warn("No limiter listener for request {} for stream {}", requestId, streamId);
     }
   }
 
