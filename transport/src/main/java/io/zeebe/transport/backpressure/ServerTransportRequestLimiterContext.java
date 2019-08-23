@@ -11,11 +11,14 @@ public class ServerTransportRequestLimiterContext {
   private final int partitionId;
   private final boolean isPriority;
   private final long requestId;
+  private final long streamId;
 
-  public ServerTransportRequestLimiterContext(int partitionId, boolean isPriority, long requestId) {
+  public ServerTransportRequestLimiterContext(
+      int partitionId, boolean isPriority, long requestId, long streamId) {
     this.partitionId = partitionId;
     this.isPriority = isPriority;
     this.requestId = requestId;
+    this.streamId = streamId;
   }
 
   public int getPartitionId() {
@@ -28,5 +31,9 @@ public class ServerTransportRequestLimiterContext {
 
   public long getRequestId() {
     return requestId;
+  }
+
+  public long getStreamId() {
+    return streamId;
   }
 }

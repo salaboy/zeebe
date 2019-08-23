@@ -69,7 +69,7 @@ public class ServerOutputImpl implements ServerOutput {
         final int remoteStreamId = response.getRemoteStreamId();
         final long requestId = response.getRequestId();
 
-        limiter.onResponse(requestId);
+        limiter.onResponse(requestId, remoteStreamId);
 
         final UnsafeBuffer bufferView = new UnsafeBuffer(allocatedBuffer);
         final TransportHeaderWriter headerWriter = new TransportHeaderWriter();

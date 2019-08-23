@@ -25,15 +25,20 @@ public class NoLimitsLimiter implements RequestLimiter<Void> {
       };
 
   @Override
+  public void onResponse(long requestId, long streamId) {}
+
+  @Override
+  public int getLimit(Void v) {
+    return 0;
+  }
+
+  @Override
   public Optional<Listener> onRequest(Void v) {
     return Optional.of(doNothingListener);
   }
 
   @Override
-  public void onResponse(long requestId) {}
-
-  @Override
-  public int getLimit(Void v) {
+  public int getInflight(ServerTransportRequestLimiterContext context) {
     return 0;
   }
 }

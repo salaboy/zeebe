@@ -12,9 +12,11 @@ import java.util.Optional;
 
 public interface RequestLimiter<Context> {
 
-  void onResponse(long requestId);
+  void onResponse(long requestId, long streamId);
 
   int getLimit(Context o);
 
   Optional<Listener> onRequest(Context o);
+
+  int getInflight(ServerTransportRequestLimiterContext context);
 }

@@ -17,7 +17,7 @@ import java.util.concurrent.ConcurrentHashMap;
 public class PartitionedServerTransportRequestLimter
     implements RequestLimiter<ServerTransportRequestLimiterContext> {
 
-  private final Map<Long, Listener> responseListeners = new ConcurrentHashMap<>();
+  private final Map<Long, Map<Long, Listener>> responseListeners = new ConcurrentHashMap<>();
   private final Map<Integer, ServerTransportRequestLimiter> partitionLimiters;
   private final Builder partitionLimiterBuilder;
 
@@ -27,8 +27,8 @@ public class PartitionedServerTransportRequestLimter
   }
 
   @Override
-  public void onResponse(long requestId) {
-    final Listener listener = responseListeners.remove(requestId);
+  public void onResponse(long requestId, long streamId) {
+    final Listener listener = responseListeners.get(streamId).remove(requestId);
     if (listener != null) {
       listener.onSuccess();
     }
@@ -45,11 +45,18 @@ public class PartitionedServerTransportRequestLimter
         partitionLimiters
             .computeIfAbsent(context.getPartitionId(), p -> partitionLimiterBuilder.build())
             .acquire(context);
-    listener.ifPresent(l -> registerListener(context.getRequestId(), l));
+    listener.ifPresent(l -> registerListener(context.getRequestId(), context.getStreamId(), l));
     return listener;
   }
 
-  private void registerListener(long requestId, Listener l) {
-    responseListeners.put(requestId, l);
+  @Override
+  public int getInflight(ServerTransportRequestLimiterContext context) {
+    return partitionLimiters.get(context.getPartitionId()).getInflight();
+  }
+
+  private void registerListener(long requestId, long streamId, Listener listener) {
+    responseListeners
+        .computeIfAbsent(streamId, s -> new ConcurrentHashMap<>())
+        .put(requestId, listener);
   }
 }

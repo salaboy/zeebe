@@ -39,14 +39,18 @@ public class RateLimitedCommandApiMessageHandler extends CommandApiMessageHandle
       int offset,
       int length,
       long requestId) {
-    final var context = getLimiterContext(buffer, offset, requestId);
+    final var context = getLimiterContext(buffer, offset, requestId, remoteAddress.getStreamId());
     final Optional<Listener> acquire = limiter.onRequest(context);
     metrics.receivedRequest(context.getPartitionId());
     if (acquire.isPresent()) {
       return super.onRequest(output, remoteAddress, buffer, offset, length, requestId);
     } else {
       metrics.dropped(context.getPartitionId());
-      Loggers.TRANSPORT_LOGGER.info("Requests over limit {}, dropping.", limiter.getLimit(context));
+      Loggers.TRANSPORT_LOGGER.info(
+          "Partition-{} : Requests {} over limit {}, dropping.",
+          context.getPartitionId(),
+          limiter.getInflight(context),
+          limiter.getLimit(context));
       return errorResponseWriter
           .internalError("Backpressure")
           .tryWriteResponse(output, remoteAddress.getStreamId(), requestId);
@@ -54,7 +58,7 @@ public class RateLimitedCommandApiMessageHandler extends CommandApiMessageHandle
   }
 
   private ServerTransportRequestLimiterContext getLimiterContext(
-      DirectBuffer buffer, int messageOffset, long requestId) {
+      DirectBuffer buffer, int messageOffset, long requestId, long streamId) {
     messageHeaderDecoder.wrap(buffer, messageOffset);
     executeCommandRequestDecoder.wrap(
         buffer,
@@ -68,6 +72,7 @@ public class RateLimitedCommandApiMessageHandler extends CommandApiMessageHandle
     return new ServerTransportRequestLimiterContext(
         executeCommandRequestDecoder.partitionId(),
         commandIntent.equals(JobIntent.COMPLETE),
-        requestId);
+        requestId,
+        streamId);
   }
 }
