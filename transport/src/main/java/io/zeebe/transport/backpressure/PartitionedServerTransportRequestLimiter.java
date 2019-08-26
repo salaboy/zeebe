@@ -46,7 +46,7 @@ public class PartitionedServerTransportRequestLimiter
         final Listener listener = streamMap.remove(requestId);
         if (listener != null) {
           listener.onSuccess();
-          cancelTimeout(streamId, requestId);
+          timeout(streamId, requestId);
         }
       }
     } catch (Exception e) {
@@ -117,7 +117,7 @@ public class PartitionedServerTransportRequestLimiter
         });
   }
 
-  private void cancelTimeout(long streamId, long requestId) {
+  private void timeout(long streamId, long requestId) {
     listenerTimeouts.get(streamId).remove(requestId);
   }
 
@@ -126,13 +126,9 @@ public class PartitionedServerTransportRequestLimiter
       long streamId,
       Listener listener,
       ServerTransportRequestLimiterContext context) {
-    final Map<Long, Listener> streamMap =
-        responseListeners.computeIfAbsent(streamId, s -> new ConcurrentHashMap<>());
-    if (streamMap.containsKey(requestId)) {
-      Loggers.TRANSPORT_LOGGER.warn("FINDME: duplicate requests {} {}", streamId, requestId);
-      streamMap.get(requestId).onIgnore(); // TODO: why are there duplicate requestsIds
-    }
-    streamMap.put(requestId, listener);
+    responseListeners
+        .computeIfAbsent(streamId, s -> new ConcurrentHashMap<>())
+        .put(requestId, listener);
     context.setStartTime(ActorClock.currentTimeMillis());
     listenerTimeouts
         .computeIfAbsent(streamId, s -> new ConcurrentHashMap<>())
