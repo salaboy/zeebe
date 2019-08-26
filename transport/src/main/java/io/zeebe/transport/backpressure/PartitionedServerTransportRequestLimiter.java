@@ -19,7 +19,6 @@ import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Collectors;
-import org.slf4j.LoggerFactory;
 
 public class PartitionedServerTransportRequestLimiter
     implements RequestLimiter<ServerTransportRequestLimiterContext> {
@@ -42,13 +41,17 @@ public class PartitionedServerTransportRequestLimiter
   public void onResponse(long requestId, long streamId) {
     lock.lock();
     try {
-      final Listener listener = responseListeners.get(streamId).remove(requestId);
-      if (listener != null) {
-        timeout(streamId, requestId);
-        listener.onSuccess();
+      final Map<Long, Listener> streamMap = responseListeners.get(streamId);
+      if (streamMap != null) {
+        final Listener listener = streamMap.remove(requestId);
+        if (listener != null) {
+          listener.onSuccess();
+          timeout(streamId, requestId);
+        }
       }
     } catch (Exception e) {
-      LoggerFactory.getLogger("FINDME:").warn("Exception at limiter.response", e);
+      Loggers.TRANSPORT_LOGGER.warn(
+          "FINDME: Exception at limiter.response {} {}", streamId, requestId, e);
     } finally {
       lock.unlock();
     }
@@ -71,10 +74,11 @@ public class PartitionedServerTransportRequestLimiter
       listener.ifPresent(
           l -> {
             registerListener(context.getRequestId(), context.getStreamId(), l, context);
-            timeoutListeners(context.getStreamId());
           });
+      timeoutListeners();
     } catch (Exception e) {
-      LoggerFactory.getLogger("FINDME:").warn("Exception at limiter.request", e);
+      Loggers.TRANSPORT_LOGGER.warn(
+          "FINDME-partition-{}: Exception at limiter.request", context.getPartitionId(), e);
     } finally {
       lock.unlock();
     }
@@ -84,6 +88,10 @@ public class PartitionedServerTransportRequestLimiter
   @Override
   public int getInflight(ServerTransportRequestLimiterContext context) {
     return partitionLimiters.get(context.getPartitionId()).getInflight();
+  }
+
+  private void timeoutListeners() {
+    listenerTimeouts.keySet().forEach(streamId -> timeoutListeners(streamId));
   }
 
   private void timeoutListeners(long streamId) {
@@ -102,7 +110,8 @@ public class PartitionedServerTransportRequestLimiter
           }
           listenerTimeouts.get(context.getStreamId()).remove(context.getRequestId());
           Loggers.TRANSPORT_LOGGER.warn(
-              "FINDME: limiter listener timeout {} {}",
+              "FINDME-partition-{}: limiter listener timeout {} {} {}",
+              context.getPartitionId(),
               context.getStreamId(),
               context.getRequestId());
         });

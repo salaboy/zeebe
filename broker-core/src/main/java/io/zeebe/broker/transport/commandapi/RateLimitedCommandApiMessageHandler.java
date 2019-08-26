@@ -47,7 +47,7 @@ public class RateLimitedCommandApiMessageHandler extends CommandApiMessageHandle
     } else {
       metrics.dropped(context.getPartitionId());
       Loggers.TRANSPORT_LOGGER.info(
-          "Partition-{} : Requests {} over limit {}, dropping.",
+          "FINDME-partition-{} : Requests {} over limit {}, dropping.",
           context.getPartitionId(),
           limiter.getInflight(context),
           limiter.getLimit(context));
