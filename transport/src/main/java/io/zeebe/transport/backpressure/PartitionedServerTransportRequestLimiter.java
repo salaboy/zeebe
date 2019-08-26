@@ -13,10 +13,13 @@ import io.zeebe.transport.backpressure.ServerTransportRequestLimiter.Builder;
 import io.zeebe.util.sched.clock.ActorClock;
 import java.time.Duration;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.stream.Collectors;
+import org.slf4j.LoggerFactory;
 
 public class PartitionedServerTransportRequestLimiter
     implements RequestLimiter<ServerTransportRequestLimiterContext> {
@@ -40,9 +43,12 @@ public class PartitionedServerTransportRequestLimiter
     lock.lock();
     try {
       final Listener listener = responseListeners.get(streamId).remove(requestId);
-      listener.onSuccess();
+      if (listener != null) {
+        timeout(streamId, requestId);
+        listener.onSuccess();
+      }
     } catch (Exception e) {
-      Loggers.TRANSPORT_LOGGER.warn("Exception at limiter.response");
+      LoggerFactory.getLogger("FINDME:").warn("Exception at limiter.response", e);
     } finally {
       lock.unlock();
     }
@@ -63,10 +69,12 @@ public class PartitionedServerTransportRequestLimiter
               .computeIfAbsent(context.getPartitionId(), p -> partitionLimiterBuilder.build())
               .acquire(context);
       listener.ifPresent(
-          l -> registerListener(context.getRequestId(), context.getStreamId(), l, context));
-      timeoutListeners(context.getStreamId());
+          l -> {
+            registerListener(context.getRequestId(), context.getStreamId(), l, context);
+            timeoutListeners(context.getStreamId());
+          });
     } catch (Exception e) {
-      Loggers.TRANSPORT_LOGGER.warn("Exception at limiter.request");
+      LoggerFactory.getLogger("FINDME:").warn("Exception at limiter.request", e);
     } finally {
       lock.unlock();
     }
@@ -80,16 +88,28 @@ public class PartitionedServerTransportRequestLimiter
 
   private void timeoutListeners(long streamId) {
     final long currentTime = ActorClock.currentTimeMillis();
-    listenerTimeouts
-        .get(streamId)
-        .values()
-        .forEach(
-            context -> {
-              if (currentTime - context.getStartTime() > TIMEOUT) {
-                Loggers.TRANSPORT_LOGGER.warn("FINDME: timeout limit listener");
-                responseListeners.get(streamId).remove(context.getRequestId());
-              }
-            });
+    final List<ServerTransportRequestLimiterContext> timedoutRequests =
+        listenerTimeouts.get(streamId).values().stream()
+            .filter(context -> currentTime - context.getStartTime() > TIMEOUT)
+            .collect(Collectors.toList());
+
+    timedoutRequests.forEach(
+        context -> {
+          final Map<Long, Listener> streams = responseListeners.get(context.getStreamId());
+          final Listener listener = streams.remove(context.getRequestId());
+          if (listener != null) {
+            listener.onIgnore();
+          }
+          listenerTimeouts.get(context.getStreamId()).remove(context.getRequestId());
+          Loggers.TRANSPORT_LOGGER.warn(
+              "FINDME: limiter listener timeout {} {}",
+              context.getStreamId(),
+              context.getRequestId());
+        });
+  }
+
+  private void timeout(long streamId, long requestId) {
+    listenerTimeouts.get(streamId).remove(requestId);
   }
 
   private void registerListener(
