@@ -7,6 +7,8 @@
  */
 package io.zeebe.gateway.impl.broker;
 
+import com.netflix.concurrency.limits.Limiter.Listener;
+import io.zeebe.gateway.Loggers;
 import io.zeebe.gateway.cmd.BrokerErrorException;
 import io.zeebe.gateway.cmd.BrokerRejectionException;
 import io.zeebe.gateway.cmd.BrokerResponseException;
@@ -28,10 +30,16 @@ import io.zeebe.protocol.record.ErrorCode;
 import io.zeebe.protocol.record.MessageHeaderDecoder;
 import io.zeebe.transport.ClientOutput;
 import io.zeebe.transport.ClientResponse;
+import io.zeebe.transport.backpressure.ResourceOverloadException;
+import io.zeebe.transport.backpressure.ServerTransportRequestLimiter;
+import io.zeebe.transport.backpressure.ServerTransportRequestLimiterContext;
 import io.zeebe.util.sched.Actor;
 import io.zeebe.util.sched.future.ActorFuture;
 import io.zeebe.util.sched.future.CompletableActorFuture;
 import java.time.Duration;
+import java.util.Map;
+import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -44,6 +52,9 @@ public class BrokerRequestManager extends Actor {
   private final RequestDispatchStrategy dispatchStrategy;
   private final BrokerTopologyManagerImpl topologyManager;
   private final Duration requestTimeout;
+
+  private final Map<Integer, ServerTransportRequestLimiter> requestLimiters =
+      new ConcurrentHashMap<>();
 
   public BrokerRequestManager(
       ClientOutput clientOutput,
@@ -145,6 +156,21 @@ public class BrokerRequestManager extends Actor {
       BrokerRequest<T> request, BiConsumer<BrokerResponse<T>, Throwable> responseConsumer) {
     final BrokerNodeIdProvider nodeIdProvider = determineBrokerNodeIdProvider(request);
 
+    final int nodeId = nodeIdProvider.get();
+
+    final ServerTransportRequestLimiter nodeLimiter =
+        requestLimiters.computeIfAbsent(
+            nodeId, k -> ServerTransportRequestLimiter.builder().build());
+    final Optional<Listener> listener =
+        nodeLimiter.acquire(
+            new ServerTransportRequestLimiterContext(0, false, 0, 0)); // ignore all params
+    if (!listener.isPresent()) {
+      // drop request
+      Loggers.GATEWAY_LOGGER.warn("FINDME: dropping requests to broker {}", nodeId);
+      responseConsumer.accept(null, new ResourceOverloadException());
+      return;
+    }
+
     final ActorFuture<ClientResponse> responseFuture =
         clientOutput.sendRequestWithRetry(
             nodeIdProvider, BrokerRequestManager::shouldRetryRequest, request, requestTimeout);
@@ -155,9 +181,11 @@ public class BrokerRequestManager extends Actor {
           (clientResponse, error) -> {
             try {
               if (error == null) {
+                listener.get().onSuccess();
                 final BrokerResponse<T> response = request.getResponse(clientResponse);
                 responseConsumer.accept(response, null);
               } else {
+                listener.get().onDropped();
                 responseConsumer.accept(null, error);
               }
             } catch (RuntimeException e) {
