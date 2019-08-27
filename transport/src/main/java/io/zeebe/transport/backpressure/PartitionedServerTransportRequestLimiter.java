@@ -23,7 +23,7 @@ import java.util.stream.Collectors;
 public class PartitionedServerTransportRequestLimiter
     implements RequestLimiter<ServerTransportRequestLimiterContext> {
 
-  private static final long TIMEOUT = Duration.ofSeconds(5).toMillis();
+  private static final long TIMEOUT = Duration.ofSeconds(3).toMillis();
   private final ReentrantLock lock = new ReentrantLock(); // just to make it easy for now
 
   private final Map<Long, Map<Long, Listener>> responseListeners = new HashMap<>();
@@ -106,7 +106,7 @@ public class PartitionedServerTransportRequestLimiter
           final Map<Long, Listener> streams = responseListeners.get(context.getStreamId());
           final Listener listener = streams.remove(context.getRequestId());
           if (listener != null) {
-            listener.onIgnore();
+            listener.onDropped();
           }
           listenerTimeouts.get(context.getStreamId()).remove(context.getRequestId());
           Loggers.TRANSPORT_LOGGER.warn(
