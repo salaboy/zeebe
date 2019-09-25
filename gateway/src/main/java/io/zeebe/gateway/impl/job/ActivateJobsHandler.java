@@ -7,6 +7,9 @@
  */
 package io.zeebe.gateway.impl.job;
 
+import io.grpc.Status.Code;
+import io.grpc.StatusRuntimeException;
+import io.zeebe.gateway.EndpointManager;
 import io.zeebe.gateway.Loggers;
 import io.zeebe.gateway.ResponseMapper;
 import io.zeebe.gateway.impl.broker.BrokerClient;
@@ -90,11 +93,15 @@ public class ActivateJobsHandler {
                 response.getTruncated());
           },
           error -> {
-            Loggers.GATEWAY_LOGGER.warn(
-                "Failed to activate jobs for type {} from partition {}",
-                jobType,
-                partitionIdIterator.getCurrentPartitionId(),
-                error);
+            final StatusRuntimeException statusRuntimeException =
+                EndpointManager.convertThrowable(error);
+            if (statusRuntimeException.getStatus().getCode() != Code.RESOURCE_EXHAUSTED) {
+              Loggers.GATEWAY_LOGGER.warn(
+                  "Failed to activate jobs for type {} from partition {}",
+                  jobType,
+                  partitionIdIterator.getCurrentPartitionId(),
+                  error);
+            }
             activateJobs(
                 request, partitionIdIterator, remainingAmount, jobType, onResponse, onCompleted);
           });
