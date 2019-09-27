@@ -73,7 +73,7 @@ func init() {
 	rootCmd.PersistentFlags().StringVar(&clientCacheFlag, "clientCache", zbc.DefaultOauthYamlCachePath, "Specify the path to use for the OAuth credentials cache. If omitted, will read from the environment variable '"+zbc.OAuthCachePathEnvVar+"'")
 }
 
-// initClient will create a client with in the following precedence: address flag, environment variable, default address
+// initClient will create a client with in the following precedence: flag, environment variable, default
 var initClient = func(cmd *cobra.Command, args []string) error {
 	var err error
 	var credsProvider zbc.CredentialsProvider
@@ -81,7 +81,10 @@ var initClient = func(cmd *cobra.Command, args []string) error {
 	host, port := parseAddress()
 
 	// override env vars with CLI parameters, if any
-	setSecurityParamsAsEnv()
+	if err := setSecurityParamsAsEnv(); err != nil {
+		return err
+	}
+
 	if clientCacheFlag != "" {
 		if _, exists := os.LookupEnv(zbc.OAuthCachePathEnvVar); !exists {
 			clientCacheFlag = zbc.DefaultOauthYamlCachePath
@@ -94,7 +97,9 @@ var initClient = func(cmd *cobra.Command, args []string) error {
 	if idExists || secretExists {
 		_, audienceExists := os.LookupEnv(zbc.OAuthTokenAudienceEnvVar)
 		if !audienceExists {
-			os.Setenv(zbc.OAuthTokenAudienceEnvVar, host)
+			if err := os.Setenv(zbc.OAuthTokenAudienceEnvVar, host); err != nil {
+				return err
+			}
 		}
 
 		providerConfig := zbc.OAuthProviderConfig{}
@@ -121,28 +126,36 @@ var initClient = func(cmd *cobra.Command, args []string) error {
 	return err
 }
 
-func setSecurityParamsAsEnv() {
+func setSecurityParamsAsEnv() (err error) {
+	setEnv := func(envVar, value string) {
+		if err != nil {
+			err = os.Setenv(envVar, value)
+		}
+	}
+
 	if insecureFlag {
-		os.Setenv(zbc.ZbInsecureEnvVar, "true")
+		setEnv(zbc.ZbInsecureEnvVar, "true")
 	}
 	if caCertPathFlag != "" {
-		os.Setenv(zbc.ZbCaCertificatePath, caCertPathFlag)
+		setEnv(zbc.ZbCaCertificatePath, caCertPathFlag)
 	}
 	if clientIDFlag != "" {
-		os.Setenv(zbc.OAuthClientIdEnvVar, clientIDFlag)
+		setEnv(zbc.OAuthClientIdEnvVar, clientIDFlag)
 	}
 	if clientSecretFlag != "" {
-		os.Setenv(zbc.OAuthClientSecretEnvVar, clientSecretFlag)
+		setEnv(zbc.OAuthClientSecretEnvVar, clientSecretFlag)
 	}
 	if audienceFlag != "" {
-		os.Setenv(zbc.OAuthTokenAudienceEnvVar, audienceFlag)
+		setEnv(zbc.OAuthTokenAudienceEnvVar, audienceFlag)
 	}
 	if shouldOverwriteEnvVar("authzUrl", zbc.OAuthAuthorizationUrlEnvVar) {
-		os.Setenv(zbc.OAuthAuthorizationUrlEnvVar, authzURLFlag)
+		setEnv(zbc.OAuthAuthorizationUrlEnvVar, authzURLFlag)
 	}
 	if shouldOverwriteEnvVar("clientCache", zbc.DefaultOauthYamlCachePath) {
-		os.Setenv(zbc.OAuthCachePathEnvVar, clientCacheFlag)
+		setEnv(zbc.OAuthCachePathEnvVar, clientCacheFlag)
 	}
+
+	return
 }
 
 // decides whether to overwrite env var (for parameters with default values)
