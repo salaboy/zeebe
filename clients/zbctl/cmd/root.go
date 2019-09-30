@@ -85,12 +85,6 @@ var initClient = func(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	if clientCacheFlag != "" {
-		if _, exists := os.LookupEnv(zbc.OAuthCachePathEnvVar); !exists {
-			clientCacheFlag = zbc.DefaultOauthYamlCachePath
-		}
-	}
-
 	_, idExists := os.LookupEnv(zbc.OAuthClientIdEnvVar)
 	_, secretExists := os.LookupEnv(zbc.OAuthClientSecretEnvVar)
 
@@ -103,13 +97,6 @@ var initClient = func(cmd *cobra.Command, args []string) error {
 		}
 
 		providerConfig := zbc.OAuthProviderConfig{}
-
-		if clientCacheFlag != "" {
-			providerConfig.Cache, err = zbc.NewOAuthYamlCredentialsCache(clientCacheFlag)
-			if err != nil {
-				return err
-			}
-		}
 
 		// create a credentials provider with the specified parameters
 		credsProvider, err = zbc.NewOAuthCredentialsProvider(&providerConfig)
